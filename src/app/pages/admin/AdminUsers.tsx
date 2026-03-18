@@ -1,4 +1,4 @@
-import { AdminLayout } from "../../components/AdminLayout";
+import { AdminLayout } from "./AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -35,10 +35,11 @@ export default function AdminUsers() {
   }, []);
 
   const loadUsers = () => {
-    const savedUsers = localStorage.getItem("users");
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    }
+    const token = localStorage.getItem("token");
+    fetch("/api/users", { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => r.json())
+      .then((data: UserWithPassword[]) => setUsers(data))
+      .catch(err => console.error(err));
   };
 
   const handleSaveUser = () => {
@@ -47,78 +48,34 @@ export default function AdminUsers() {
       return;
     }
 
-    let updatedUsers: UserWithPassword[];
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
 
     if (editingUser) {
-      // Проверяем уникальность логина и email (кроме текущего пользователя)
-      const isDuplicate = users.some(
-        u => u.id !== editingUser.id && (u.login === formData.login || u.email === formData.email)
-      );
-
-      if (isDuplicate) {
-        toast.error("Пользователь с таким логином или email уже существует");
-        return;
-      }
-
-      // Редактируем существующего пользователя
-      updatedUsers = users.map(user =>
-        user.id === editingUser.id
-          ? {
-              ...user,
-              email: formData.email,
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              login: formData.login,
-              role: formData.role,
-              ...(formData.password ? { password: formData.password } : {})
-            }
-          : user
-      );
-      toast.success("Пользователь успешно обновлён");
+      fetch(`/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(formData)
+      })
+        .then(() => {
+          toast.success("Пользователь успешно обновлён");
+          loadUsers();
+          closeDialog();
+        });
     } else {
-      // Проверяем уникальность
-      const isDuplicate = users.some(
-        u => u.login === formData.login || u.email === formData.email
-      );
-
-      if (isDuplicate) {
-        toast.error("Пользователь с таким логином или email уже существует");
-        return;
-      }
-
-      if (!formData.password) {
-        toast.error("Укажите пароль для нового пользователя");
-        return;
-      }
-
-      // Добавляем нового пользователя
-      const newUser: UserWithPassword = {
-        id: Date.now().toString(),
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        login: formData.login,
-        password: formData.password,
-        role: formData.role,
-        readingBooks: []
-      };
-      updatedUsers = [...users, newUser];
-      toast.success("Пользователь успешно добавлен");
+      fetch(`/api/users`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(formData)
+      }).then(() => {
+        toast.success("Пользователь успешно добавлен");
+        loadUsers();
+        closeDialog();
+      });
     }
-
-    localStorage.setItem("users", JSON.stringify(updatedUsers));
-    setUsers(updatedUsers);
-    
-    // Если редактируем текущего пользователя, обновляем его данные в currentUser
-    if (editingUser && currentUser && editingUser.id === currentUser.id) {
-      const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
-      if (updatedCurrentUser) {
-        const { password: _, ...userWithoutPassword } = updatedCurrentUser;
-        localStorage.setItem("currentUser", JSON.stringify(userWithoutPassword));
-      }
-    }
-    
-    closeDialog();
   };
 
   const handleDeleteUser = (userId: string) => {
@@ -130,20 +87,14 @@ export default function AdminUsers() {
     }
 
     if (window.confirm("Вы уверены, что хотите удалить этого пользователя?")) {
-      const updatedUsers = users.filter(user => user.id !== userId);
-      localStorage.setItem("users", JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
-      
-      // Также удаляем пользователя из currentUser если он был авторизован
-      const currentUser = localStorage.getItem("currentUser");
-      if (currentUser) {
-        const parsedCurrentUser = JSON.parse(currentUser);
-        if (parsedCurrentUser.id === userId) {
-          localStorage.removeItem("currentUser");
-        }
-      }
-      
-      toast.success("Пользователь успешно удалён");
+      const token = localStorage.getItem("token");
+      fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }).then(() => {
+        setUsers(users.filter(user => user.id !== userId));
+        toast.success("Пользователь успешно удалён");
+      });
     }
   };
 
@@ -186,11 +137,11 @@ export default function AdminUsers() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog}>
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus style={{ width: 16, height: 16, marginRight: 8 }} />
                 Добавить пользователя
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent style={{ maxWidth: "42rem" }}>
               <DialogHeader>
                 <DialogTitle>
                   {editingUser ? "Редактировать пользователя" : "Добавить нового пользователя"}
@@ -315,7 +266,7 @@ export default function AdminUsers() {
                           size="sm"
                           onClick={() => openEditDialog(user)}
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil style={{ width: 16, height: 16 }} />
                         </Button>
                         <Button
                           variant="ghost"
@@ -323,7 +274,7 @@ export default function AdminUsers() {
                           onClick={() => handleDeleteUser(user.id)}
                           disabled={user.role === "admin" && users.filter(u => u.role === "admin").length === 1}
                         >
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                          <Trash2 style={{ width: 16, height: 16, color: "var(--destructive)" }} />
                         </Button>
                       </div>
                     </TableCell>

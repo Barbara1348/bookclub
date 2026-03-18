@@ -1,5 +1,4 @@
 import { useParams, useNavigate } from "react-router";
-import { books as initialBooks, initialComments } from "../data/books";
 import { CommentSection } from "../components/CommentSection";
 import { Button } from "../components/ui/button";
 import { ArrowLeft, Download, BookOpen } from "lucide-react";
@@ -9,7 +8,7 @@ import { QuoteSection } from "../components/QuoteSection";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useAuth } from "../context/AuthContext";
 import { useState, useEffect } from "react";
-import { Book } from "../data/books";
+import type { Book } from "../types";
 
 export default function BookDiscussion() {
   const { id } = useParams();
@@ -17,22 +16,34 @@ export default function BookDiscussion() {
   const [books, setBooks] = useState<Book[]>([]);
   const [book, setBook] = useState<Book | null>(null);
   const { user, addBookToReading, removeBookFromReading, isBookInReading } = useAuth();
+
+  // если админ попытается открыть обсуждение, отправим его на панель
+  useEffect(() => {
+    if (user?.role === "admin") {
+      navigate("/admin");
+    }
+  }, [user, navigate]);
   const [quoteRefresh, setQuoteRefresh] = useState(0);
 
   useEffect(() => {
-    // Загружаем книги из localStorage
-    const savedBooks = localStorage.getItem("books");
-    const loadedBooks = savedBooks ? JSON.parse(savedBooks) : initialBooks;
-    setBooks(loadedBooks);
-    
-    // Находим текущую книгу
-    const currentBook = loadedBooks.find((b: Book) => b.id === id);
-    setBook(currentBook || null);
+    // load books from backend; if fetch fails we will just leave books empty
+    fetch("/api/books")
+      .then(r => r.json())
+      .then((loadedBooks: Book[]) => {
+        // ensure id is a string everywhere – the server returns numbers
+        const normalized = loadedBooks.map(b => ({ ...b, id: b.id.toString() }));
+        setBooks(normalized);
+        const currentBook = normalized.find((b) => b.id === id);
+        setBook(currentBook || null);
+      })
+      .catch((err) => {
+        console.error("failed to load books", err);
+      });
   }, [id]);
 
   if (!book) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="app-page flex items-center justify-center p-4">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Книга не найдена</h1>
           <Button onClick={() => navigate("/")}>
@@ -44,17 +55,12 @@ export default function BookDiscussion() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b sticky top-0 bg-background z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+    <div className="app-page">
+      <header className="border-b sticky top-0 z-10" style={{ background: "var(--background)" }}>
+        <div className="app-container-narrow px-4 py-4">
           <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/")}
-              className="gap-2"
-            >
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="ghost" onClick={() => navigate("/")} className="gap-2">
+              <ArrowLeft style={{ width: 16, height: 16 }} />
               Назад к книгам
             </Button>
             {user && (
@@ -66,17 +72,11 @@ export default function BookDiscussion() {
         </div>
       </header>
 
-      {/* Book Details */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-[300px_1fr] gap-8 mb-12">
-          {/* Book Cover */}
+      <div className="app-container-narrow px-4 py-8">
+        <div className="grid gap-8 mb-12 md:grid-cols-[300px_1fr]">
           <div>
-            <div className="sticky top-24">
-              <img
-                src={book.cover}
-                alt={book.title}
-                className="w-full rounded-lg shadow-lg"
-              />
+            <div className="sticky" style={{ top: "6rem" }}>
+              <img src={book.cover} alt={book.title} className="w-full rounded-lg" style={{ boxShadow: "0 10px 25px rgba(0,0,0,0.1)" }} />
               {user && (
                 <Button
                   className="w-full mt-4"
@@ -98,21 +98,17 @@ export default function BookDiscussion() {
           {/* Book Info */}
           <div>
             <div className="mb-6">
-              <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-sm rounded-full mb-3">
+              <span className="inline-block px-3 py-1 text-sm rounded-full mb-3 bg-primary-muted text-primary">
                 {book.genre}
               </span>
               <h1 className="text-4xl font-bold mb-2">{book.title}</h1>
-              <p className="text-xl text-muted-foreground mb-6">
-                {book.author}
-              </p>
+              <p className="text-xl text-muted mb-6">{book.author}</p>
             </div>
 
             <Card className="mb-6">
               <CardContent className="pt-6">
                 <h2 className="text-xl font-semibold mb-3">О книге</h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {book.description}
-                </p>
+                <p className="text-muted leading-relaxed">{book.description}</p>
               </CardContent>
             </Card>
 
@@ -121,17 +117,16 @@ export default function BookDiscussion() {
                 <h2 className="text-xl font-semibold mb-3">
                   Электронная версия
                 </h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <p className="text-sm text-muted mb-4">
                   Скачайте книгу в формате PDF для чтения на любом устройстве
                 </p>
                 <Button
-                  className="w-full sm:w-auto gap-2"
+                  className="w-full gap-2"
                   onClick={() => {
                     // В реальном приложении здесь была бы ссылка на скачивание файла
-                    alert("Функция скачивания будет доступна после подключения файлового хранилища");
                   }}
                 >
-                  <Download className="w-4 h-4" />
+                  <Download style={{ width: 16, height: 16 }} />
                   Скачать PDF
                 </Button>
               </CardContent>
@@ -156,17 +151,20 @@ export default function BookDiscussion() {
           </TabsContent>
 
           <TabsContent value="comments" className="mt-6">
-            <CommentSection bookId={book.id} initialComments={initialComments} />
+            <CommentSection
+              bookId={book.id}
+              discussionDeadline={book.discussionDeadline}
+            />
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* Footer */}
+      {/* Footer
       <footer className="py-8 px-4 border-t mt-12">
-        <div className="max-w-6xl mx-auto text-center text-muted-foreground">
+        <div className="app-container-narrow text-center text-muted">
           <p>© 2026 Книжный Клуб. Читайте с удовольствием!</p>
         </div>
-      </footer>
+      </footer> */}
     </div>
   );
 }

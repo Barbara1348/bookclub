@@ -1,39 +1,44 @@
-export interface Quote {
-  id: string;
-  bookId: string;
-  userId: string;
-  userName: string;
-  text: string;
-  date: string;
+import type { Quote } from "../types";
+
+export type { Quote };
+
+// utility to fetch quotes by book from backend
+export async function getQuotes(bookId?: string): Promise<Quote[]> {
+  if (!bookId) return [];
+  const res = await fetch(`/api/books/${bookId}/quotes`);
+  return res.ok ? res.json() : [];
 }
 
-export function getQuotes(bookId?: string): Quote[] {
-  const quotes = JSON.parse(localStorage.getItem("quotes") || "[]");
+// fetch quotes of a user (requires auth)
+export async function getUserQuotes(userId: string, bookId?: string): Promise<Quote[]> {
+  const token = localStorage.getItem("token");
+  const res = await fetch(`/api/users/${userId}/quotes`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!res.ok) return [];
+  let quotes: Quote[] = await res.json();
   if (bookId) {
-    return quotes.filter((q: Quote) => q.bookId === bookId);
+    quotes = quotes.filter(q => q.bookId === bookId);
   }
   return quotes;
 }
 
-export function getUserQuotes(userId: string, bookId?: string): Quote[] {
-  const quotes = JSON.parse(localStorage.getItem("quotes") || "[]");
-  let userQuotes = quotes.filter((q: Quote) => q.userId === userId);
-  
-  if (bookId) {
-    userQuotes = userQuotes.filter((q: Quote) => q.bookId === bookId);
-  }
-  
-  return userQuotes;
+export async function addQuote(quote: Omit<Quote, "id" | "date" | "userName">): Promise<void> {
+  const token = localStorage.getItem("token");
+  await fetch(`/api/books/${quote.bookId}/quotes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ text: quote.text })
+  });
 }
 
-export function addQuote(quote: Quote): void {
-  const quotes = JSON.parse(localStorage.getItem("quotes") || "[]");
-  quotes.push(quote);
-  localStorage.setItem("quotes", JSON.stringify(quotes));
-}
-
-export function deleteQuote(quoteId: string): void {
-  const quotes = JSON.parse(localStorage.getItem("quotes") || "[]");
-  const filteredQuotes = quotes.filter((q: Quote) => q.id !== quoteId);
-  localStorage.setItem("quotes", JSON.stringify(filteredQuotes));
+export async function deleteQuote(quoteId: string): Promise<void> {
+  const token = localStorage.getItem("token");
+  await fetch(`/api/quotes/${quoteId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
 }

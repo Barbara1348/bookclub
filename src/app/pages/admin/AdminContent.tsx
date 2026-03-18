@@ -1,4 +1,4 @@
-import { AdminLayout } from "../../components/AdminLayout";
+import { AdminLayout } from "./AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -7,40 +7,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-
-interface HeroContent {
-  title: string;
-  subtitle: string;
-  description: string;
-  imageUrl: string;
-}
-
-interface Feature {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-}
-
-interface GalleryItem {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-}
-
-interface SiteContent {
-  hero: HeroContent;
-  features: Feature[];
-  gallery: GalleryItem[];
-  booksSection: {
-    title: string;
-    description: string;
-  };
-  footer: {
-    text: string;
-  };
-}
+import type { SiteContent } from "../../types";
 
 const defaultContent: SiteContent = {
   hero: {
@@ -87,36 +54,39 @@ const defaultContent: SiteContent = {
     title: "Наши книги",
     description: "Выберите книгу и присоединяйтесь к обсуждению. Делитесь мнениями, задавайте вопросы и находите новых друзей!"
   },
-  footer: {
-    text: "© 2026 Книжный Клуб. Читайте с удовольствием!"
-  }
+  // footer: {
+  //   text: "© 2026 Книжный Клуб. Читайте с удовольствием!"
+  // }
 };
 
 export default function AdminContent() {
   const [content, setContent] = useState<SiteContent>(defaultContent);
 
   useEffect(() => {
-    const savedContent = localStorage.getItem("siteContent");
-    if (savedContent) {
-      setContent(JSON.parse(savedContent));
-    } else {
-      localStorage.setItem("siteContent", JSON.stringify(defaultContent));
-    }
+    fetch("/api/content")
+      .then(r => r.json())
+      .then((data: SiteContent) => setContent(data))
+      .catch(err => console.error("failed to load site content", err));
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem("siteContent", JSON.stringify(content));
-    toast.success("Контент успешно сохранён");
+    fetch("/api/content", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(content),
+    })
+      .then(() => toast.success("Контент успешно сохранён"))
+      .catch(err => console.error("failed to save content", err));
   };
 
-  const updateHero = (field: keyof HeroContent, value: string) => {
+  const updateHero = (field: keyof SiteContent['hero'], value: string) => {
     setContent({
       ...content,
       hero: { ...content.hero, [field]: value }
     });
   };
 
-  const updateFeature = (id: string, field: keyof Feature, value: string) => {
+  const updateFeature = (id: string, field: keyof SiteContent['features'][0], value: string) => {
     setContent({
       ...content,
       features: content.features.map(f =>
@@ -125,7 +95,7 @@ export default function AdminContent() {
     });
   };
 
-  const updateGalleryItem = (id: string, field: keyof GalleryItem, value: string) => {
+  const updateGalleryItem = (id: string, field: keyof SiteContent['gallery'][0], value: string) => {
     setContent({
       ...content,
       gallery: content.gallery.map(g =>
@@ -146,18 +116,18 @@ export default function AdminContent() {
 
         <Tabs defaultValue="hero" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="hero">Hero секция</TabsTrigger>
+            <TabsTrigger value="hero">Наполнение</TabsTrigger>
             <TabsTrigger value="features">Особенности</TabsTrigger>
             <TabsTrigger value="gallery">Галерея</TabsTrigger>
             <TabsTrigger value="books">Секция книг</TabsTrigger>
-            <TabsTrigger value="footer">Футер</TabsTrigger>
+            {/* <TabsTrigger value="footer">Футер</TabsTrigger> */}
           </TabsList>
 
           {/* Hero Section */}
           <TabsContent value="hero">
             <Card>
               <CardHeader>
-                <CardTitle>Редактировать Hero секцию</CardTitle>
+                <CardTitle>Редактировать наполнение</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -337,7 +307,7 @@ export default function AdminContent() {
           </TabsContent>
 
           {/* Footer Section */}
-          <TabsContent value="footer">
+          {/* <TabsContent value="footer">
             <Card>
               <CardHeader>
                 <CardTitle>Футер</CardTitle>
@@ -358,7 +328,7 @@ export default function AdminContent() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent> */}
         </Tabs>
       </div>
     </AdminLayout>

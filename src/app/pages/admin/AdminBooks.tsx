@@ -1,4 +1,4 @@
-import { AdminLayout } from "../../components/AdminLayout";
+import { AdminLayout } from "./AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../../components/ui/dialog";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { books as initialBooks, Book } from "../../data/books";
+import type { Book } from "../../types";
 import { toast } from "sonner";
 
 export default function AdminBooks() {
@@ -21,22 +21,36 @@ export default function AdminBooks() {
     cover: "",
     description: "",
     pdfUrl: "",
-    genre: ""
+    genre: "",
+    discussionDeadline: null
   });
+
+  const genres = [
+    "Модерация",
+    "Фасилитация",
+    "Тренинги",
+    "Лекции",
+    "Игропрактики",
+    "Другое",
+  ];
+
+  const isValidAuthor = (value: string) => {
+    // only letters (Cyrillic + Latin) and spaces
+    return /^[а-яА-ЯёЁa-zA-Z\s]*$/.test(value);
+  };
 
   useEffect(() => {
     loadBooks();
   }, []);
 
   const loadBooks = () => {
-    const savedBooks = localStorage.getItem("books");
-    if (savedBooks) {
-      setBooks(JSON.parse(savedBooks));
-    } else {
-      // Инициализируем начальными данными
-      localStorage.setItem("books", JSON.stringify(initialBooks));
-      setBooks(initialBooks);
-    }
+    const token = localStorage.getItem("token");
+    fetch("/api/books", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => r.json())
+      .then((data: Book[]) => setBooks(data))
+      .catch((err) => console.error("failed to load books", err));
   };
 
   const handleSaveBook = () => {
@@ -45,35 +59,75 @@ export default function AdminBooks() {
       return;
     }
 
+    if (formData.title.length > 80) {
+      toast.error("Название не должно превышать 80 символов");
+      return;
+    }
+
+    if (formData.author.length > 80) {
+      toast.error("Автор не должен превышать 80 символов");
+      return;
+    }
+
+    if (!isValidAuthor(formData.author)) {
+      toast.error("Автор должен содержать только буквы");
+      return;
+    }
+
+    if (!genres.includes(formData.genre)) {
+      toast.error("Выберите жанр из списка");
+      return;
+    }
+
+    if (formData.description.length > 300) {
+      toast.error("Описание не должно превышать 300 символов");
+      return;
+    }
+
     let updatedBooks: Book[];
 
     if (editingBook) {
-      // Редактируем существующую книгу
-      updatedBooks = books.map(book =>
-        book.id === editingBook.id ? { ...formData, id: editingBook.id } : book
-      );
-      toast.success("Книга успешно обновлена");
+      // send PUT to server
+      const token = localStorage.getItem("token");
+      fetch(`/api/books/${editingBook.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formData),
+      }).then(() => {
+        toast.success("Книга успешно обновлена");
+        loadBooks();
+        closeDialog();
+      });
     } else {
-      // Добавляем новую книгу
-      const newBook: Book = {
-        ...formData,
-        id: Date.now().toString()
-      };
-      updatedBooks = [...books, newBook];
-      toast.success("Книга успешно добавлена");
+      const token = localStorage.getItem("token");
+      fetch(`/api/books`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(formData),
+      })
+        .then((r) => r.json())
+        .then((newBook: Book) => {
+          const nb = { ...newBook, id: newBook.id.toString() };
+          toast.success("Книга успешно добавлена");
+          setBooks([...books, nb]);
+          closeDialog();
+        });
     }
-
-    localStorage.setItem("books", JSON.stringify(updatedBooks));
-    setBooks(updatedBooks);
-    closeDialog();
   };
 
   const handleDeleteBook = (bookId: string) => {
     if (window.confirm("Вы уверены, что хотите удалить эту книгу?")) {
-      const updatedBooks = books.filter(book => book.id !== bookId);
-      localStorage.setItem("books", JSON.stringify(updatedBooks));
-      setBooks(updatedBooks);
-      toast.success("Книга успешно удалена");
+      const token = localStorage.getItem("token");
+      fetch(`/api/books/${bookId}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(() => {
+        setBooks(books.filter(book => book.id !== bookId));
+        toast.success("Книга успешно удалена");
+      });
     }
   };
 
@@ -85,7 +139,8 @@ export default function AdminBooks() {
       cover: book.cover,
       description: book.description,
       pdfUrl: book.pdfUrl,
-      genre: book.genre
+      genre: book.genre,
+      discussionDeadline: book.discussionDeadline || null
     });
     setIsDialogOpen(true);
   };
@@ -98,7 +153,8 @@ export default function AdminBooks() {
       cover: "",
       description: "",
       pdfUrl: "",
-      genre: ""
+      genre: "",
+      discussionDeadline: null
     });
     setIsDialogOpen(true);
   };
@@ -124,11 +180,11 @@ export default function AdminBooks() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog}>
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus style={{ width: 16, height: 16, marginRight: 8 }} />
                 Добавить книгу
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="overflow-y-auto" style={{ maxWidth: "42rem", maxHeight: "90vh" }}>
               <DialogHeader>
                 <DialogTitle>
                   {editingBook ? "Редактировать книгу" : "Добавить новую книгу"}
@@ -142,6 +198,7 @@ export default function AdminBooks() {
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Введите название книги"
+                    maxLength={80}
                   />
                 </div>
                 <div>
@@ -149,18 +206,31 @@ export default function AdminBooks() {
                   <Input
                     id="author"
                     value={formData.author}
-                    onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (isValidAuthor(value) || value === "") {
+                        setFormData({ ...formData, author: value });
+                      }
+                    }}
                     placeholder="Введите имя автора"
+                    maxLength={80}
                   />
                 </div>
                 <div>
                   <Label htmlFor="genre">Жанр</Label>
-                  <Input
+                  <select
                     id="genre"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     value={formData.genre}
                     onChange={(e) => setFormData({ ...formData, genre: e.target.value })}
-                    placeholder="Например: Детектив, Фэнтези"
-                  />
+                  >
+                    <option value="">Выберите жанр</option>
+                    {genres.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label htmlFor="cover">URL обложки</Label>
@@ -179,6 +249,7 @@ export default function AdminBooks() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Краткое описание книги"
                     rows={4}
+                    maxLength={300}
                   />
                 </div>
                 <div>
@@ -188,6 +259,16 @@ export default function AdminBooks() {
                     value={formData.pdfUrl}
                     onChange={(e) => setFormData({ ...formData, pdfUrl: e.target.value })}
                     placeholder="https://example.com/book.pdf"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="discussionDeadline">Дедлайн обсуждения</Label>
+                  <Input
+                    id="discussionDeadline"
+                    type="datetime-local"
+                    value={formData.discussionDeadline || ""}
+                    onChange={(e) => setFormData({ ...formData, discussionDeadline: e.target.value || null })}
+                    placeholder="Дата и время окончания обсуждения"
                   />
                 </div>
               </div>
@@ -215,6 +296,7 @@ export default function AdminBooks() {
                   <TableHead>Название</TableHead>
                   <TableHead>Автор</TableHead>
                   <TableHead>Жанр</TableHead>
+                  <TableHead>Дедлайн</TableHead>
                   <TableHead className="text-right">Действия</TableHead>
                 </TableRow>
               </TableHeader>
@@ -231,6 +313,11 @@ export default function AdminBooks() {
                     <TableCell className="font-medium">{book.title}</TableCell>
                     <TableCell>{book.author}</TableCell>
                     <TableCell>{book.genre}</TableCell>
+                    <TableCell>
+                      {book.discussionDeadline
+                        ? new Date(book.discussionDeadline).toLocaleString("ru-RU")
+                        : "—"}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
@@ -238,14 +325,14 @@ export default function AdminBooks() {
                           size="sm"
                           onClick={() => openEditDialog(book)}
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil style={{ width: 16, height: 16 }} />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteBook(book.id)}
                         >
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                          <Trash2 style={{ width: 16, height: 16, color: "var(--destructive)" }} />
                         </Button>
                       </div>
                     </TableCell>

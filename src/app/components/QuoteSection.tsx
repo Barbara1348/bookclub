@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { getQuotes, Quote, deleteQuote } from "../data/quotes";
+import { getQuotes, deleteQuote, Quote } from "../data/quotes";
 import { useAuth } from "../context/AuthContext";
 import { Button } from "./ui/button";
 import { Trash2, Quote as QuoteIcon } from "lucide-react";
@@ -18,13 +18,13 @@ export function QuoteSection({ bookId, refresh }: QuoteSectionProps) {
     loadQuotes();
   }, [bookId, refresh]);
 
-  const loadQuotes = () => {
-    const bookQuotes = getQuotes(bookId);
+  const loadQuotes = async () => {
+    const bookQuotes = await getQuotes(bookId);
     setQuotes(bookQuotes);
   };
 
-  const handleDeleteQuote = (quoteId: string) => {
-    deleteQuote(quoteId);
+  const handleDeleteQuote = async (quoteId: string) => {
+    await deleteQuote(quoteId);
     loadQuotes();
   };
 
@@ -34,7 +34,7 @@ export function QuoteSection({ bookId, refresh }: QuoteSectionProps) {
         <h2 className="text-2xl font-semibold mb-2">
           Цитатник ({quotes.length})
         </h2>
-        <p className="text-sm text-muted-foreground mb-6">
+        <p className="text-sm text-muted mb-6">
           Любимые цитаты читателей из этой книги
         </p>
 
@@ -42,8 +42,8 @@ export function QuoteSection({ bookId, refresh }: QuoteSectionProps) {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center py-8">
-                <QuoteIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
+                <QuoteIcon className="w-12 h-12 mx-auto mb-4 text-muted" />
+                <p className="text-muted">
                   Пока нет цитат. Станьте первым, кто добавит понравившийся отрывок!
                 </p>
               </div>
@@ -59,7 +59,7 @@ export function QuoteSection({ bookId, refresh }: QuoteSectionProps) {
                       <CardTitle className="text-base">
                         {quote.userName}
                       </CardTitle>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm text-muted">
                         {new Date(quote.date).toLocaleDateString('ru-RU')}
                       </span>
                     </div>
@@ -68,9 +68,9 @@ export function QuoteSection({ bookId, refresh }: QuoteSectionProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteQuote(quote.id)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 style={{ width: 16, height: 16, color: "var(--destructive)" }} />
                       </Button>
                     )}
                   </div>

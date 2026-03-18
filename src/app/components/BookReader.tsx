@@ -4,14 +4,13 @@ import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { useAuth } from "../context/AuthContext";
 import { addQuote } from "../data/quotes";
-import { Book } from "../data/books";
+import type { Book } from "../types";
 
 interface BookReaderProps {
   book: Book;
   onQuoteAdded: () => void;
 }
 
-// Мок-текст книги для демонстрации
 const getMockBookText = (bookTitle: string) => {
   return `Глава 1
 
@@ -102,7 +101,6 @@ export function BookReader({ book, onQuoteAdded }: BookReaderProps) {
     setShowQuoteForm(false);
     onQuoteAdded();
     
-    // Снимаем выделение
     window.getSelection()?.removeAllRanges();
   };
 
@@ -111,13 +109,13 @@ export function BookReader({ book, onQuoteAdded }: BookReaderProps) {
       <Card>
         <CardHeader>
           <CardTitle>Читать онлайн</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted">
             Выделите текст, чтобы добавить его в цитатник
           </p>
         </CardHeader>
         <CardContent>
           <div
-            className="prose prose-sm max-w-none bg-muted/30 p-6 rounded-lg leading-relaxed whitespace-pre-wrap select-text"
+            className="p-6 rounded-lg leading-relaxed whitespace-pre-wrap select-text section-muted"
             onMouseUp={handleTextSelection}
           >
             {getMockBookText(book.title)}
@@ -131,7 +129,7 @@ export function BookReader({ book, onQuoteAdded }: BookReaderProps) {
             <CardTitle className="text-lg">Добавить в цитатник</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-muted/50 p-4 rounded-lg border-l-4 border-primary">
+            <div className="p-4 rounded-lg border-l-4 border-primary" style={{ background: "color-mix(in srgb, var(--muted) 50%, transparent)" }}>
               <p className="text-sm italic">{selectedText}</p>
             </div>
             <div className="flex gap-2">
@@ -154,9 +152,9 @@ export function BookReader({ book, onQuoteAdded }: BookReaderProps) {
       )}
 
       {!user && (
-        <Card className="border-yellow-500 bg-yellow-50">
+        <Card style={{ borderColor: "#eab308", background: "#fef9c3" }}>
           <CardContent className="pt-6">
-            <p className="text-sm text-yellow-800">
+            <p className="text-sm" style={{ color: "#854d0e" }}>
               Войдите в систему, чтобы добавлять цитаты в свой цитатник
             </p>
           </CardContent>
